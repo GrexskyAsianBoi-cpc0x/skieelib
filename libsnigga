@@ -1,0 +1,1117 @@
+--[[
+    ZZZZZ
+]]
+
+local TweenService      = game:GetService("TweenService")
+local Players           = game:GetService("Players")
+local RunService        = game:GetService("RunService")
+local SoundService      = game:GetService("SoundService")
+local UserInputService  = game:GetService("UserInputService")
+local CoreGui           = game:GetService("CoreGui")
+local Camera            = workspace.CurrentCamera
+
+local LocalPlayer = Players.LocalPlayer
+
+local Library = {}
+Library.__index = Library
+
+-- ===================== THEME =====================
+local Theme = {
+    Black     = Color3.fromRGB(6, 6, 8),
+    BlackAlt  = Color3.fromRGB(14, 14, 17),
+    Grey      = Color3.fromRGB(26, 26, 30),
+    GreyLight = Color3.fromRGB(44, 44, 49),
+    Border    = Color3.fromRGB(58, 58, 64),
+    Accent    = Color3.fromRGB(195, 195, 205),
+    AccentDim = Color3.fromRGB(95, 95, 103),
+    Text      = Color3.fromRGB(238, 238, 241),
+    SubText   = Color3.fromRGB(150, 150, 158),
+    Font      = Enum.Font.Code,
+    FontTitle = Enum.Font.GothamBlack,
+}
+
+-- ===================== SOUND =====================
+local Sounds = {
+    Boot    = "rbxassetid://9125715642",
+    Hover   = "rbxassetid://12222027639",
+    Click   = "rbxassetid://9114301373",
+    Glitch  = "rbxassetid://9114299404",
+    Success = "rbxassetid://9125715642",
+    Type    = "rbxassetid://9114299404",
+}
+
+local function PlaySound(id, volume, pitch)
+    local ok, snd = pcall(function()
+        local s = Instance.new("Sound")
+        s.SoundId = id
+        s.Volume = volume or 0.4
+        s.PlaybackSpeed = pitch or 1
+        s.Parent = SoundService
+        s:Play()
+        game:GetService("Debris"):AddItem(s, 3)
+        return s
+    end)
+    if ok then return snd end
+end
+
+-- ===================== UTIL =====================
+local function New(class, props, children)
+    local inst = Instance.new(class)
+    for k, v in pairs(props or {}) do
+        if k ~= "Parent" then inst[k] = v end
+    end
+    for _, c in ipairs(children or {}) do c.Parent = inst end
+    if props and props.Parent then inst.Parent = props.Parent end
+    return inst
+end
+
+local function Corner(r) return New("UICorner", { CornerRadius = UDim.new(0, r or 6) }) end
+local function Stroke(color, thickness, transparency)
+    return New("UIStroke", { Color = color or Theme.Border, Thickness = thickness or 1, Transparency = transparency or 0 })
+end
+local function Tween(obj, props, time, style, dir)
+    local t = TweenService:Create(obj, TweenInfo.new(time or 0.25, style or Enum.EasingStyle.Quint, dir or Enum.EasingDirection.Out), props)
+    t:Play()
+    return t
+end
+
+local SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*<>/\\|[]{}"
+local function ScrambleText(label, finalText, duration, steps)
+    steps = steps or 14
+    local stepTime = duration / steps
+    coroutine.wrap(function()
+        for i = 1, steps do
+            local out = {}
+            local revealCount = math.floor((i / steps) * #finalText)
+            for c = 1, #finalText do
+                if c <= revealCount then
+                    out[c] = finalText:sub(c, c)
+                else
+                    out[c] = finalText:sub(c, c) == " " and " " or SCRAMBLE_CHARS:sub(math.random(1, #SCRAMBLE_CHARS), math.random(1, #SCRAMBLE_CHARS))
+                end
+            end
+            label.Text = table.concat(out)
+            task.wait(stepTime)
+        end
+        label.Text = finalText
+    end)()
+end
+
+local function TypeText(label, finalText, charTime)
+    charTime = charTime or 0.012
+    coroutine.wrap(function()
+        for i = 1, #finalText do
+            label.Text = finalText:sub(1, i)
+            task.wait(charTime)
+        end
+    end)()
+end
+
+local function GetAvatarThumb(userId)
+    local ok, content = pcall(function()
+        return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+    end)
+    if ok then return content end
+    return "rbxasset://textures/face.png"
+end
+
+local function GetRootParent()
+    local ok, g = pcall(function()
+        local g2 = Instance.new("ScreenGui")
+        g2.Name = "Skiee0xc0_" .. tostring(math.random(1, 999999))
+        g2.ResetOnSpawn = false
+        g2.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        g2.DisplayOrder = 999
+        g2.IgnoreGuiInset = true
+        g2.Parent = CoreGui
+        return g2
+    end)
+    if ok then return g end
+    local pg = LocalPlayer:WaitForChild("PlayerGui")
+    local g2 = Instance.new("ScreenGui")
+    g2.Name = "Skiee0xc0"
+    g2.ResetOnSpawn = false
+    g2.Parent = pg
+    return g2
+end
+
+-- ===================== LOADING SCREEN v4 (fullscreen, max fx) =====================
+local function CreateLoadingScreen(onComplete)
+    local gui = GetRootParent()
+
+    local overlay = New("Frame", {
+        Size = UDim2.fromScale(1, 1),
+        BackgroundColor3 = Theme.Black,
+        Parent = gui,
+        ZIndex = 100,
+    })
+
+    -- ===== animated grid bg =====
+    local gridFolder = New("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ClipsDescendants = true, Parent = overlay, ZIndex = 100 })
+    for i = 1, 30 do
+        New("Frame", {
+            Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, i / 30, 0),
+            BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.95, BorderSizePixel = 0,
+            Parent = gridFolder, ZIndex = 100,
+        })
+    end
+    for i = 1, 20 do
+        New("Frame", {
+            Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(i / 20, 0, 0, 0),
+            BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.95, BorderSizePixel = 0,
+            Parent = gridFolder, ZIndex = 100,
+        })
+    end
+
+    -- ===== matrix rain columns (full width) =====
+    local matrixFolder = New("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ClipsDescendants = true, Parent = overlay, ZIndex = 100 })
+    local MATRIX_CHARS = "01ABCDEF$#@&%><SKIEE0XC0"
+    local colCount = 34
+    local matrixCols = {}
+    local matrixSpeeds = {}
+    for i = 0, colCount - 1 do
+        local col = New("TextLabel", {
+            Size = UDim2.new(0, 22, 0, 700),
+            Position = UDim2.new(i / colCount, 0, -0.8, 0),
+            BackgroundTransparency = 1,
+            Text = "",
+            Font = Enum.Font.Code,
+            TextSize = 14,
+            TextColor3 = Theme.Accent,
+            TextTransparency = 0.8,
+            TextYAlignment = Enum.TextYAlignment.Top,
+            Parent = matrixFolder,
+            ZIndex = 100,
+        })
+        local lines = {}
+        for l = 1, 40 do lines[l] = MATRIX_CHARS:sub(math.random(1, #MATRIX_CHARS), math.random(1, #MATRIX_CHARS)) end
+        col.Text = table.concat(lines, "\n")
+        matrixCols[#matrixCols + 1] = col
+        matrixSpeeds[col] = math.random(90, 260) / 100
+    end
+
+    local matrixAlive = true
+    task.spawn(function()
+        while matrixAlive do
+            for _, col in ipairs(matrixCols) do
+                local p = col.Position
+                local newY = p.Y.Scale + matrixSpeeds[col] * 0.016
+                if newY > 1 then newY = -0.8 end
+                col.Position = UDim2.new(p.X.Scale, 0, newY, 0)
+            end
+            task.wait()
+        end
+    end)
+
+    -- ===== CRT vignette (corners darken) =====
+    local vignette = New("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = overlay, ZIndex = 105 })
+    local function VignetteCorner(anchor, pos)
+        New("ImageLabel", {
+            Size = UDim2.fromScale(0.6, 0.6),
+            Position = pos,
+            AnchorPoint = anchor,
+            BackgroundTransparency = 1,
+            Image = "rbxassetid://5028857472", -- radial gradient white->transparent
+            ImageColor3 = Theme.Black,
+            ImageTransparency = 0.25,
+            ScaleType = Enum.ScaleType.Crop,
+            Parent = vignette,
+            ZIndex = 105,
+        })
+    end
+    VignetteCorner(Vector2.new(0, 0), UDim2.fromScale(0, 0))
+    VignetteCorner(Vector2.new(1, 0), UDim2.fromScale(1, 0))
+    VignetteCorner(Vector2.new(0, 1), UDim2.fromScale(0, 1))
+    VignetteCorner(Vector2.new(1, 1), UDim2.fromScale(1, 1))
+
+    -- ===== floating particles =====
+    local particleFolder = New("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ClipsDescendants = true, Parent = overlay, ZIndex = 101 })
+    for i = 1, 35 do
+        local p = New("Frame", {
+            Size = UDim2.fromOffset(math.random(2, 4), math.random(2, 4)),
+            Position = UDim2.fromScale(math.random(0, 100) / 100, math.random(0, 100) / 100),
+            BackgroundColor3 = Theme.Accent,
+            BackgroundTransparency = math.random(30, 75) / 100,
+            BorderSizePixel = 0,
+            Parent = particleFolder,
+            ZIndex = 101,
+        }, { Corner(2) })
+        task.spawn(function()
+            while p.Parent do
+                local targetY = math.random(-20, 120) / 100
+                local targetX = math.random(0, 100) / 100
+                Tween(p, { Position = UDim2.fromScale(targetX, targetY) }, math.random(3, 8), Enum.EasingStyle.Sine)
+                task.wait(math.random(3, 8))
+            end
+        end)
+    end
+
+    -- ===== full screen scanline sweep beam =====
+    local scanBeam = New("Frame", {
+        Size = UDim2.new(1, 0, 0, 4),
+        Position = UDim2.new(0, 0, -0.1, 0),
+        BackgroundColor3 = Theme.Accent,
+        BackgroundTransparency = 0.4,
+        BorderSizePixel = 0,
+        Parent = overlay,
+        ZIndex = 102,
+    })
+    New("UIGradient", {
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 1),
+            NumberSequenceKeypoint.new(0.5, 0.1),
+            NumberSequenceKeypoint.new(1, 1),
+        }),
+    }).Parent = scanBeam
+    task.spawn(function()
+        while scanBeam.Parent do
+            scanBeam.Position = UDim2.new(0, 0, -0.05, 0)
+            Tween(scanBeam, { Position = UDim2.new(0, 0, 1.05, 0) }, 2.0, Enum.EasingStyle.Linear)
+            task.wait(2.0)
+        end
+    end)
+
+    -- ===== terminal boot log, bottom-left corner =====
+    local termHolder = New("Frame", {
+        Size = UDim2.new(0, 420, 0, 160),
+        Position = UDim2.new(0, 24, 1, -24),
+        AnchorPoint = Vector2.new(0, 1),
+        BackgroundColor3 = Theme.BlackAlt,
+        BackgroundTransparency = 0.25,
+        Parent = overlay,
+        ZIndex = 106,
+    }, { Corner(6) })
+    Stroke(Theme.Accent, 1, 0.65).Parent = termHolder
+    New("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) }).Parent = termHolder
+    local termList = New("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
+    termList.Parent = termHolder
+
+    local bootLines = {
+        "root@skiee0xc0:~$ init_core.sh",
+        "[ OK ] mounting kernel overlay",
+        "[ OK ] resolving entity offsets",
+        "[ OK ] handshake: render thread",
+        "[WARN] integrity check bypassed",
+        "[ OK ] loading theme: black/grey",
+        "[ OK ] spawning floating controller",
+        "root@skiee0xc0:~$ launch hub --fast",
+    }
+    task.spawn(function()
+        for i, line in ipairs(bootLines) do
+            local lbl = New("TextLabel", {
+                Size = UDim2.new(1, 0, 0, 16),
+                BackgroundTransparency = 1,
+                Text = "",
+                Font = Enum.Font.Code,
+                TextSize = 12,
+                TextColor3 = line:find("WARN") and Color3.fromRGB(200, 170, 90) or Theme.SubText,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                LayoutOrder = i,
+                Parent = termHolder,
+                ZIndex = 106,
+            })
+            TypeText(lbl, line, 0.008)
+            task.wait(#line * 0.008 + 0.12)
+        end
+    end)
+
+    -- ===== center container =====
+    local center = New("Frame", {
+        Size = UDim2.fromOffset(520, 440),
+        Position = UDim2.fromScale(0.5, 0.5),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        Parent = overlay,
+        ZIndex = 110,
+    })
+
+    -- triple rings: outer slow, mid reverse, inner fast
+    local ringHolder = New("Frame", {
+        Size = UDim2.fromOffset(170, 170),
+        Position = UDim2.new(0.5, 0, 0, 6),
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundTransparency = 1,
+        Parent = center,
+        ZIndex = 111,
+    })
+    local outerRing = New("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = ringHolder, ZIndex = 111 }, { Corner(85) })
+    Stroke(Theme.Accent, 2, 0.4).Parent = outerRing
+    local midRing = New("Frame", { Size = UDim2.fromOffset(148, 148), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Parent = ringHolder, ZIndex = 111 }, { Corner(74) })
+    Stroke(Theme.AccentDim, 1, 0.55).Parent = midRing
+    local innerRing = New("Frame", { Size = UDim2.fromOffset(128, 128), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Parent = ringHolder, ZIndex = 111 }, { Corner(64) })
+    Stroke(Theme.Accent, 1, 0.3).Parent = innerRing
+
+    task.spawn(function()
+        while outerRing.Parent do
+            outerRing.Rotation = (outerRing.Rotation + 0.9) % 360
+            midRing.Rotation = (midRing.Rotation - 1.6) % 360
+            innerRing.Rotation = (innerRing.Rotation + 2.6) % 360
+            task.wait()
+        end
+    end)
+
+    -- avatar
+    local avatarHolder = New("Frame", {
+        Size = UDim2.fromOffset(118, 118),
+        Position = UDim2.fromScale(0.5, 0.5),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Theme.Grey,
+        Parent = ringHolder,
+        ZIndex = 112,
+    }, { Corner(59) })
+    Stroke(Theme.Accent, 2, 0.1).Parent = avatarHolder
+    New("ImageLabel", {
+        Size = UDim2.fromScale(1, 1),
+        BackgroundTransparency = 1,
+        Image = GetAvatarThumb(LocalPlayer.UserId),
+        Parent = avatarHolder,
+        ZIndex = 113,
+    }, { Corner(59) })
+
+    -- pulsing glow ring behind avatar (breathing)
+    local glowPulse = New("Frame", {
+        Size = UDim2.fromOffset(118, 118),
+        Position = UDim2.fromScale(0.5, 0.5),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        Parent = ringHolder,
+        ZIndex = 110,
+    }, { Corner(59) })
+    local glowStroke = Stroke(Theme.Accent, 3, 0.5)
+    glowStroke.Parent = glowPulse
+    task.spawn(function()
+        while glowPulse.Parent do
+            Tween(glowStroke, { Transparency = 0.1, Thickness = 5 }, 0.9, Enum.EasingStyle.Sine)
+            task.wait(0.9)
+            Tween(glowStroke, { Transparency = 0.6, Thickness = 2 }, 0.9, Enum.EasingStyle.Sine)
+            task.wait(0.9)
+        end
+    end)
+
+    -- hacker banner
+    local banner = New("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 22),
+        Position = UDim2.new(0, 0, 0, 192),
+        BackgroundTransparency = 1,
+        Text = "",
+        Font = Theme.Font,
+        TextSize = 14,
+        TextColor3 = Theme.Accent,
+        Parent = center,
+        ZIndex = 111,
+    })
+
+    -- ===== title w/ RGB-split glitch + running neon sweep + outline =====
+    local titleHolder = New("Frame", {
+        Size = UDim2.new(1, 0, 0, 60),
+        Position = UDim2.new(0, 0, 0, 220),
+        BackgroundTransparency = 1,
+        ClipsDescendants = true,
+        Parent = center,
+        ZIndex = 111,
+    })
+
+    local titleGlitchR = New("TextLabel", {
+        Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "Skiee0xc0",
+        Font = Theme.FontTitle, TextSize = 40, TextColor3 = Color3.fromRGB(210, 55, 55),
+        TextTransparency = 0.55, Position = UDim2.fromOffset(2, 0), Parent = titleHolder, ZIndex = 110,
+    })
+    local titleGlitchB = New("TextLabel", {
+        Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "Skiee0xc0",
+        Font = Theme.FontTitle, TextSize = 40, TextColor3 = Color3.fromRGB(55, 170, 210),
+        TextTransparency = 0.55, Position = UDim2.fromOffset(-2, 0), Parent = titleHolder, ZIndex = 110,
+    })
+    local title = New("TextLabel", {
+        Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "Skiee0xc0",
+        Font = Theme.FontTitle, TextSize = 40, TextColor3 = Theme.Text, Parent = titleHolder, ZIndex = 112,
+    })
+    Stroke(Theme.Accent, 1, 0.4).Parent = title
+
+    local sweep = New("Frame", {
+        Size = UDim2.new(0, 80, 1.6, 0), Position = UDim2.new(-0.5, 0, -0.3, 0),
+        BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.2, Rotation = 18,
+        Parent = titleHolder, ZIndex = 113,
+    })
+    New("UIGradient", {
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0), NumberSequenceKeypoint.new(1, 1),
+        }),
+    }).Parent = sweep
+
+    task.spawn(function()
+        while sweep.Parent do
+            sweep.Position = UDim2.new(-0.5, 0, -0.3, 0)
+            Tween(sweep, { Position = UDim2.new(1.5, 0, -0.3, 0) }, 0.9, Enum.EasingStyle.Sine)
+            task.wait(1.05)
+        end
+    end)
+
+    -- glitch flicker: jitter + hard cuts + occasional full-opacity flash
+    task.spawn(function()
+        while titleHolder.Parent do
+            task.wait(math.random(10, 30) / 10)
+            local ox, oy = math.random(-6, 6), math.random(-3, 3)
+            titleGlitchR.Position = UDim2.fromOffset(ox + 2, oy)
+            titleGlitchB.Position = UDim2.fromOffset(-ox - 2, -oy)
+            if math.random() > 0.6 then
+                title.TextTransparency = 0.5
+            end
+            task.wait(0.045)
+            titleGlitchR.Position = UDim2.fromOffset(2, 0)
+            titleGlitchB.Position = UDim2.fromOffset(-2, 0)
+            title.TextTransparency = 0
+        end
+    end)
+
+    -- username
+    New("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 18), Position = UDim2.new(0, 0, 0, 282),
+        BackgroundTransparency = 1, Text = "@" .. LocalPlayer.Name, Font = Theme.Font,
+        TextSize = 13, TextColor3 = Theme.SubText, Parent = center, ZIndex = 111,
+    })
+
+    -- progress bar w/ glow cap + tick marks
+    local barBg = New("Frame", {
+        Size = UDim2.new(1, 0, 0, 5), Position = UDim2.new(0, 0, 0, 328),
+        BackgroundColor3 = Theme.Grey, Parent = center, ZIndex = 111,
+    }, { Corner(3) })
+    Stroke(Theme.Border, 1, 0.5).Parent = barBg
+    for i = 1, 9 do
+        New("Frame", {
+            Size = UDim2.new(0, 1, 0, 9), Position = UDim2.new(i / 10, 0, 0.5, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Theme.Border,
+            BackgroundTransparency = 0.5, BorderSizePixel = 0, Parent = barBg, ZIndex = 111,
+        })
+    end
+    local barFill = New("Frame", { Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = Theme.Accent, Parent = barBg, ZIndex = 112 }, { Corner(3) })
+    New("Frame", {
+        Size = UDim2.fromOffset(10, 14), Position = UDim2.fromScale(1, 0.5), AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.3, Parent = barFill, ZIndex = 113,
+    }, { Corner(7) })
+
+    -- status (scrambled rotating messages)
+    local status = New("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 16), Position = UDim2.new(0, 0, 0, 344),
+        BackgroundTransparency = 1, Text = "", Font = Theme.Font, TextSize = 12,
+        TextColor3 = Theme.SubText, Parent = center, ZIndex = 111,
+    })
+
+    local pct = New("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 16), Position = UDim2.new(0, 0, 0, 364),
+        BackgroundTransparency = 1, Text = "0%", Font = Theme.Font, TextSize = 12,
+        TextColor3 = Theme.Accent, Parent = center, ZIndex = 111,
+    })
+
+    -- ===== 4-edge neon border runner around whole screen =====
+    local bt = 3
+    local function EdgeRunner(sizeProp, posStart)
+        return New("Frame", {
+            Size = sizeProp, Position = posStart, BackgroundColor3 = Theme.Accent,
+            BackgroundTransparency = 0.25, BorderSizePixel = 0, Parent = overlay, ZIndex = 103,
+        })
+    end
+    local topEdge = EdgeRunner(UDim2.new(0, 140, 0, bt), UDim2.new(-0.18, 0, 0, 0))
+    local rightEdge = EdgeRunner(UDim2.new(0, bt, 0, 140), UDim2.new(1, -bt, -0.18, 0))
+    local bottomEdge = EdgeRunner(UDim2.new(0, 140, 0, bt), UDim2.new(1.18, -140, 1, -bt))
+    local leftEdge = EdgeRunner(UDim2.new(0, bt, 0, 140), UDim2.new(0, 0, 1.18, -140))
+
+    task.spawn(function()
+        while topEdge.Parent do
+            Tween(topEdge, { Position = UDim2.new(1.18, 0, 0, 0) }, 2.1, Enum.EasingStyle.Linear)
+            Tween(rightEdge, { Position = UDim2.new(1, -bt, 1.18, 0) }, 2.1, Enum.EasingStyle.Linear)
+            Tween(bottomEdge, { Position = UDim2.new(-0.18, 0, 1, -bt) }, 2.1, Enum.EasingStyle.Linear)
+            Tween(leftEdge, { Position = UDim2.new(0, 0, -0.18, 0) }, 2.1, Enum.EasingStyle.Linear)
+            task.wait(2.2)
+            topEdge.Position = UDim2.new(-0.18, 0, 0, 0)
+            rightEdge.Position = UDim2.new(1, -bt, -0.18, 0)
+            bottomEdge.Position = UDim2.new(1.18, -140, 1, -bt)
+            leftEdge.Position = UDim2.new(0, 0, 1.18, -140)
+        end
+    end)
+
+    -- ===== corner brackets (hud style) =====
+    local function Bracket(anchor, pos, flipX, flipY)
+        local b = New("Frame", {
+            Size = UDim2.fromOffset(36, 36), Position = pos, AnchorPoint = anchor,
+            BackgroundTransparency = 1, Parent = overlay, ZIndex = 106,
+        })
+        New("Frame", {
+            Size = UDim2.new(1, 0, 0, 2), Position = UDim2.new(0, 0, flipY and 1 or 0, 0),
+            AnchorPoint = Vector2.new(0, flipY and 1 or 0), BackgroundColor3 = Theme.Accent,
+            BackgroundTransparency = 0.2, BorderSizePixel = 0, Parent = b, ZIndex = 106,
+        })
+        New("Frame", {
+            Size = UDim2.new(0, 2, 1, 0), Position = UDim2.new(flipX and 1 or 0, 0, 0, 0),
+            AnchorPoint = Vector2.new(flipX and 1 or 0, 0), BackgroundColor3 = Theme.Accent,
+            BackgroundTransparency = 0.2, BorderSizePixel = 0, Parent = b, ZIndex = 106,
+        })
+        return b
+    end
+    Bracket(Vector2.new(0, 0), UDim2.new(0, 24, 0, 24), false, false)
+    Bracket(Vector2.new(1, 0), UDim2.new(1, -24, 0, 24), true, false)
+    Bracket(Vector2.new(0, 1), UDim2.new(0, 24, 1, -24), false, true)
+    Bracket(Vector2.new(1, 1), UDim2.new(1, -24, 1, -24), true, true)
+
+    -- ===== sequence =====
+    PlaySound(Sounds.Boot, 0.35)
+    ScrambleText(banner, "[ INITIALIZING SKIEE0XC0 CORE ]", 1.0, 18)
+
+    local statusMsgs = {
+        "linking modules...",
+        "decrypting payload...",
+        "bypassing integrity check...",
+        "resolving entity list...",
+        "mounting overlay...",
+        "verifying signature...",
+        "injecting render hook...",
+        "calibrating ESP matrix...",
+        "spawning hub...",
+    }
+
+    local DURATION = 5.5
+
+    task.spawn(function()
+        for _, msg in ipairs(statusMsgs) do
+            ScrambleText(status, msg, 0.4, 8)
+            task.wait(DURATION / #statusMsgs)
+        end
+    end)
+
+    task.spawn(function()
+        local steps = 55
+        for i = 1, steps do
+            pct.Text = tostring(math.floor((i / steps) * 100)) .. "%"
+            task.wait(DURATION / steps)
+        end
+        pct.Text = "100%"
+    end)
+
+    Tween(barFill, { Size = UDim2.new(1, 0, 1, 0) }, DURATION, Enum.EasingStyle.Quad)
+
+    -- periodic particle burst from avatar center
+    task.spawn(function()
+        local bursts = 0
+        while bursts < 4 do
+            task.wait(DURATION / 4)
+            bursts += 1
+            for i = 1, 10 do
+                local b = New("Frame", {
+                    Size = UDim2.fromOffset(3, 3),
+                    Position = UDim2.new(0.5, 0, 0, 65),
+                    AnchorPoint = Vector2.new(0.5, 0.5),
+                    BackgroundColor3 = Theme.Accent,
+                    BorderSizePixel = 0,
+                    Parent = center,
+                    ZIndex = 114,
+                }, { Corner(2) })
+                local angle = math.rad(math.random(0, 360))
+                local dist = math.random(60, 140)
+                local tx = math.cos(angle) * dist
+                local ty = math.sin(angle) * dist
+                Tween(b, {
+                    Position = UDim2.new(0.5, tx, 0, 65 + ty),
+                    BackgroundTransparency = 1,
+                }, 0.7, Enum.EasingStyle.Quad)
+                task.delay(0.72, function() b:Destroy() end)
+            end
+        end
+    end)
+
+    task.delay(DURATION + 0.3, function()
+        matrixAlive = false
+        PlaySound(Sounds.Success, 0.3)
+        Tween(overlay, { BackgroundTransparency = 1 }, 0.6)
+        for _, d in ipairs(overlay:GetDescendants()) do
+            if d:IsA("TextLabel") then Tween(d, { TextTransparency = 1 }, 0.5) end
+            if d:IsA("ImageLabel") then Tween(d, { ImageTransparency = 1 }, 0.5) end
+            if d:IsA("Frame") then Tween(d, { BackgroundTransparency = 1 }, 0.5) end
+            if d:IsA("UIStroke") then Tween(d, { Transparency = 1 }, 0.5) end
+        end
+        task.wait(0.65)
+        overlay:Destroy()
+        if onComplete then onComplete() end
+    end)
+end
+
+-- ===================== FLOATING BUTTON =====================
+local function CreateFloatingButton(gui, iconId, onClick)
+    local holder = New("Frame", {
+        Size = UDim2.fromOffset(60, 60),
+        Position = UDim2.fromOffset(30, 30),
+        BackgroundTransparency = 1,
+        Visible = false,
+        Parent = gui,
+        ZIndex = 200,
+    })
+
+    -- breathing glow ring behind button
+    local glow = New("Frame", {
+        Size = UDim2.fromOffset(52, 52), Position = UDim2.fromScale(0.5, 0.5),
+        AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Parent = holder, ZIndex = 199,
+    }, { Corner(30) })
+    local glowStroke = Stroke(Theme.Accent, 2, 0.5)
+    glowStroke.Parent = glow
+    task.spawn(function()
+        while glow.Parent do
+            Tween(glow, { Size = UDim2.fromOffset(64, 64) }, 1.1, Enum.EasingStyle.Sine)
+            Tween(glowStroke, { Transparency = 0.75 }, 1.1, Enum.EasingStyle.Sine)
+            task.wait(1.1)
+            Tween(glow, { Size = UDim2.fromOffset(52, 52) }, 1.1, Enum.EasingStyle.Sine)
+            Tween(glowStroke, { Transparency = 0.4 }, 1.1, Enum.EasingStyle.Sine)
+            task.wait(1.1)
+        end
+    end)
+
+    local btn = New("ImageButton", {
+        Size = UDim2.fromOffset(52, 52), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Theme.Grey, AutoButtonColor = false, Parent = holder, ZIndex = 200,
+    }, { Corner(26) })
+    Stroke(Theme.Accent, 1.5, 0.2).Parent = btn
+
+    New("ImageLabel", {
+        Size = UDim2.fromScale(0.6, 0.6), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1, Image = iconId or "rbxassetid://7733960981", ImageColor3 = Theme.Text,
+        Parent = btn, ZIndex = 201,
+    })
+
+    local dragging, dragStart, startPos, moved = false, nil, nil, false
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; moved = false; dragStart = input.Position; startPos = holder.Position
+            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            moved = true
+            local delta = input.Position - dragStart
+            holder.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    btn.MouseButton1Up:Connect(function()
+        if not moved then
+            PlaySound(Sounds.Click, 0.3)
+            onClick()
+        end
+    end)
+
+    return holder
+end
+
+-- ===================== MAIN WINDOW =====================
+function Library.new(config)
+    config = config or {}
+    local self = setmetatable({}, Library)
+    self.Gui = GetRootParent()
+    self.Tabs = {}
+    self.Ready = false
+
+    CreateLoadingScreen(function()
+        local ok, err = pcall(function() self:_BuildWindow(config) end)
+        if not ok then
+            warn("[Skiee0xc0] build error: " .. tostring(err))
+        else
+            self.Ready = true
+        end
+    end)
+    return self
+end
+
+function Library:_BuildWindow(config)
+    local gui = self.Gui
+
+    -- outer glow wrapper (stroke glow behind main frame)
+    local glowWrap = New("Frame", {
+        Size = UDim2.fromOffset(632, 432), Position = UDim2.fromScale(0.5, 0.5),
+        AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Parent = gui, ZIndex = 9,
+    }, { Corner(14) })
+    local glowStroke = Stroke(Theme.Accent, 2, 0.5)
+    glowStroke.Parent = glowWrap
+    task.spawn(function()
+        while glowWrap.Parent do
+            Tween(glowStroke, { Transparency = 0.2 }, 1.6, Enum.EasingStyle.Sine)
+            task.wait(1.6)
+            Tween(glowStroke, { Transparency = 0.7 }, 1.6, Enum.EasingStyle.Sine)
+            task.wait(1.6)
+        end
+    end)
+
+    local main = New("Frame", {
+        Size = UDim2.fromOffset(620, 420), Position = UDim2.fromScale(0.5, 0.5),
+        AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Theme.Black,
+        ClipsDescendants = true, Parent = gui, ZIndex = 10,
+    }, { Corner(10) })
+    Stroke(Theme.Border, 1.2, 0.1).Parent = main
+
+    -- diagonal moving gradient sheen across the whole hub bg
+    local sheen = New("Frame", {
+        Size = UDim2.new(0, 260, 2.4, 0), Position = UDim2.new(-0.5, 0, -0.7, 0),
+        BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.94, Rotation = 18,
+        BorderSizePixel = 0, Parent = main, ZIndex = 1,
+    })
+    New("UIGradient", {
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.4), NumberSequenceKeypoint.new(1, 1),
+        }),
+    }).Parent = sheen
+    task.spawn(function()
+        while sheen.Parent do
+            sheen.Position = UDim2.new(-0.5, 0, -0.7, 0)
+            Tween(sheen, { Position = UDim2.new(1.3, 0, -0.7, 0) }, 3.2, Enum.EasingStyle.Sine)
+            task.wait(4.5)
+        end
+    end)
+
+    main.Size = UDim2.fromOffset(0, 0)
+    main.BackgroundTransparency = 1
+    glowWrap.Size = UDim2.fromOffset(12, 12)
+    Tween(main, { Size = UDim2.fromOffset(620, 420), BackgroundTransparency = 0 }, 0.45, Enum.EasingStyle.Back)
+    Tween(glowWrap, { Size = UDim2.fromOffset(632, 432) }, 0.45, Enum.EasingStyle.Back)
+
+    local topbar = New("Frame", { Size = UDim2.new(1, 0, 0, 46), BackgroundColor3 = Theme.BlackAlt, Parent = main, ZIndex = 11 }, { Corner(10) })
+    New("Frame", { Size = UDim2.new(1, 0, 0, 10), Position = UDim2.new(0, 0, 1, -10), BackgroundColor3 = Theme.BlackAlt, BorderSizePixel = 0, Parent = topbar, ZIndex = 11 })
+    New("Frame", { -- bottom hairline glow under topbar
+        Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, 0),
+        BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.6, BorderSizePixel = 0, Parent = topbar, ZIndex = 12,
+    })
+
+    local titleHolder = New("Frame", {
+        Size = UDim2.new(0, 220, 1, 0), Position = UDim2.fromOffset(16, 0),
+        BackgroundTransparency = 1, ClipsDescendants = true, Parent = topbar, ZIndex = 12,
+    })
+    New("TextLabel", {
+        Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "Skiee0xc0",
+        Font = Theme.FontTitle, TextSize = 20, TextColor3 = Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left, Parent = titleHolder, ZIndex = 12,
+    })
+    local titleSweep = New("Frame", {
+        Size = UDim2.new(0, 40, 2, 0), Position = UDim2.new(-0.3, 0, -0.5, 0),
+        BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.45, Rotation = 20,
+        Parent = titleHolder, ZIndex = 13,
+    })
+    New("UIGradient", {
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.2), NumberSequenceKeypoint.new(1, 1),
+        }),
+    }).Parent = titleSweep
+    task.spawn(function()
+        while titleSweep.Parent do
+            titleSweep.Position = UDim2.new(-0.3, 0, -0.5, 0)
+            Tween(titleSweep, { Position = UDim2.new(1.3, 0, -0.5, 0) }, 1.6, Enum.EasingStyle.Sine)
+            task.wait(2.8)
+        end
+    end)
+
+    local function TopbarBtn(x, text, color)
+        local b = New("TextButton", {
+            Size = UDim2.fromOffset(26, 26), Position = UDim2.new(1, x, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5),
+            BackgroundColor3 = Theme.Grey, Text = text, Font = Theme.Font, TextSize = 14,
+            TextColor3 = color or Theme.SubText, AutoButtonColor = false, Parent = topbar, ZIndex = 12,
+        }, { Corner(6) })
+        b.MouseEnter:Connect(function() Tween(b, { BackgroundColor3 = Theme.GreyLight }, 0.15) end)
+        b.MouseLeave:Connect(function() Tween(b, { BackgroundColor3 = Theme.Grey }, 0.15) end)
+        return b
+    end
+    local minimizeBtn = TopbarBtn(-62, "–")
+    local closeBtn = TopbarBtn(-32, "x", Color3.fromRGB(200, 90, 90))
+
+    local sidebar = New("Frame", { Size = UDim2.new(0, 140, 1, -46), Position = UDim2.fromOffset(0, 46), BackgroundColor3 = Theme.BlackAlt, Parent = main, ZIndex = 11 })
+    New("Frame", { -- right hairline on sidebar
+        Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(1, 0, 0, 0),
+        BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.7, BorderSizePixel = 0, Parent = sidebar, ZIndex = 12,
+    })
+    New("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }).Parent = sidebar
+    New("UIPadding", { PaddingTop = UDim.new(0, 10), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) }).Parent = sidebar
+
+    local content = New("Frame", { Size = UDim2.new(1, -140, 1, -46), Position = UDim2.fromOffset(140, 46), BackgroundTransparency = 1, Parent = main, ZIndex = 11 })
+
+    do
+        local dragging, dragStart, startPos = false, nil, nil
+        topbar.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true; dragStart = input.Position; startPos = main.Position
+                input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+            end
+        end)
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                local delta = input.Position - dragStart
+                local newPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+                main.Position = newPos
+                glowWrap.Position = newPos
+            end
+        end)
+    end
+
+    self.Main, self.Sidebar, self.Content, self.GlowWrap = main, sidebar, content, glowWrap
+
+    local floatBtn = CreateFloatingButton(gui, config.FloatIcon, function() self:Show() end)
+    self.FloatBtn = floatBtn
+
+    minimizeBtn.MouseButton1Click:Connect(function()
+        PlaySound(Sounds.Click, 0.3)
+        Tween(main, { Size = UDim2.fromOffset(0, 0), BackgroundTransparency = 1 }, 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+        Tween(glowWrap, { Size = UDim2.fromOffset(12, 12) }, 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+        task.delay(0.3, function()
+            main.Visible = false
+            glowWrap.Visible = false
+            floatBtn.Visible = true
+            floatBtn.Size = UDim2.fromOffset(0, 0)
+            Tween(floatBtn, { Size = UDim2.fromOffset(60, 60) }, 0.3, Enum.EasingStyle.Back)
+        end)
+    end)
+    closeBtn.MouseButton1Click:Connect(function()
+        PlaySound(Sounds.Click, 0.3)
+        Tween(main, { Size = UDim2.fromOffset(0, 0), BackgroundTransparency = 1 }, 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+        Tween(glowWrap, { Size = UDim2.fromOffset(12, 12) }, 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+        task.delay(0.3, function() main.Visible = false; glowWrap.Visible = false end)
+    end)
+
+    function self:Show()
+        PlaySound(Sounds.Click, 0.3)
+        Tween(floatBtn, { Size = UDim2.fromOffset(0, 0) }, 0.2)
+        task.delay(0.2, function()
+            floatBtn.Visible = false
+            main.Visible = true
+            glowWrap.Visible = true
+            main.Size = UDim2.fromOffset(0, 0); main.BackgroundTransparency = 1
+            glowWrap.Size = UDim2.fromOffset(12, 12)
+            Tween(main, { Size = UDim2.fromOffset(620, 420), BackgroundTransparency = 0 }, 0.35, Enum.EasingStyle.Back)
+            Tween(glowWrap, { Size = UDim2.fromOffset(632, 432) }, 0.35, Enum.EasingStyle.Back)
+        end)
+    end
+
+    self._firstTabSet = false
+end
+
+-- ===================== TAB API =====================
+function Library:CreateTab(name)
+    if not self.Ready then
+        local waited = 0
+        repeat task.wait(0.1); waited += 0.1 until self.Ready or waited > 12
+        if not self.Ready then warn("[Skiee0xc0] CreateTab timeout"); return nil end
+    end
+
+    local sidebar, content = self.Sidebar, self.Content
+    local btnHolder = New("Frame", {
+        Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = Theme.Grey, BackgroundTransparency = 1,
+        LayoutOrder = #self.Tabs + 1, Parent = sidebar, ZIndex = 12,
+    }, { Corner(6) })
+    local glowBar = New("Frame", { -- left active-tab glow indicator
+        Size = UDim2.new(0, 3, 0, 0), Position = UDim2.new(0, -8, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5), BackgroundColor3 = Theme.Accent,
+        BackgroundTransparency = 1, BorderSizePixel = 0, Parent = btnHolder, ZIndex = 13,
+    }, { Corner(2) })
+    local btn = New("TextButton", {
+        Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = name,
+        Font = Theme.Font, TextSize = 13, TextColor3 = Theme.SubText, AutoButtonColor = false,
+        Parent = btnHolder, ZIndex = 12,
+    })
+
+    local page = New("ScrollingFrame", {
+        Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 3,
+        ScrollBarImageColor3 = Theme.Accent, AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        CanvasSize = UDim2.new(0, 0, 0, 0), Visible = false, Parent = content, ZIndex = 11,
+    })
+    New("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }).Parent = page
+    New("UIPadding", { PaddingTop = UDim.new(0, 14), PaddingLeft = UDim.new(0, 14), PaddingRight = UDim.new(0, 14), PaddingBottom = UDim.new(0, 14) }).Parent = page
+
+    local tabObj = { Button = btnHolder, Page = page, GlowBar = glowBar }
+    local function selectTab()
+        for _, t in ipairs(self.Tabs) do
+            t.Page.Visible = false
+            Tween(t.Button, { BackgroundTransparency = 1 }, 0.15)
+            Tween(t.Button:FindFirstChildOfClass("TextButton"), { TextColor3 = Theme.SubText }, 0.15)
+            Tween(t.GlowBar, { Size = UDim2.new(0, 3, 0, 0), BackgroundTransparency = 1 }, 0.15)
+        end
+        page.Visible = true
+        Tween(btnHolder, { BackgroundTransparency = 0 }, 0.15)
+        Tween(btn, { TextColor3 = Theme.Text }, 0.15)
+        Tween(glowBar, { Size = UDim2.new(0, 3, 0, 20), BackgroundTransparency = 0.2 }, 0.2, Enum.EasingStyle.Back)
+    end
+    btn.MouseButton1Click:Connect(function()
+        PlaySound(Sounds.Click, 0.25)
+        selectTab()
+    end)
+    table.insert(self.Tabs, tabObj)
+    if not self._firstTabSet then self._firstTabSet = true; selectTab() end
+
+    local Tab = {}
+
+    function Tab:AddToggle(text, default, callback)
+        local holder = New("Frame", { Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = Theme.BlackAlt, Parent = page }, { Corner(6) })
+        Stroke(Theme.Border, 1, 0.4).Parent = holder
+        New("TextLabel", {
+            Size = UDim2.new(1, -56, 1, 0), Position = UDim2.fromOffset(12, 0), BackgroundTransparency = 1, Text = text,
+            Font = Theme.Font, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = holder,
+        })
+        local track = New("Frame", { Size = UDim2.fromOffset(38, 18), Position = UDim2.new(1, -46, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundColor3 = Theme.Grey, Parent = holder }, { Corner(9) })
+        local knob = New("Frame", { Size = UDim2.fromOffset(14, 14), Position = UDim2.fromOffset(2, 2), BackgroundColor3 = Theme.SubText, Parent = track }, { Corner(7) })
+        local state = default or false
+        local function render()
+            if state then
+                Tween(track, { BackgroundColor3 = Theme.Accent }, 0.18)
+                Tween(knob, { Position = UDim2.fromOffset(22, 2), BackgroundColor3 = Theme.Black }, 0.18)
+            else
+                Tween(track, { BackgroundColor3 = Theme.Grey }, 0.18)
+                Tween(knob, { Position = UDim2.fromOffset(2, 2), BackgroundColor3 = Theme.SubText }, 0.18)
+            end
+        end
+        render()
+        New("TextButton", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "", Parent = holder }).MouseButton1Click:Connect(function()
+            state = not state
+            PlaySound(Sounds.Click, 0.25)
+            render()
+            if callback then callback(state) end
+        end)
+        return { Set = function(v) state = v; render() end, Get = function() return state end }
+    end
+
+    function Tab:AddButton(text, callback)
+        local b = New("TextButton", {
+            Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = Theme.BlackAlt, Text = text,
+            Font = Theme.Font, TextSize = 13, TextColor3 = Theme.Text, AutoButtonColor = false, Parent = page,
+        }, { Corner(6) })
+        Stroke(Theme.Border, 1, 0.4).Parent = b
+        b.MouseEnter:Connect(function() Tween(b, { BackgroundColor3 = Theme.Grey }, 0.15) end)
+        b.MouseLeave:Connect(function() Tween(b, { BackgroundColor3 = Theme.BlackAlt }, 0.15) end)
+        b.MouseButton1Click:Connect(function()
+            PlaySound(Sounds.Click, 0.3)
+            if callback then callback() end
+        end)
+        return b
+    end
+
+    function Tab:AddSlider(text, min, max, default, callback)
+        local holder = New("Frame", { Size = UDim2.new(1, 0, 0, 46), BackgroundColor3 = Theme.BlackAlt, Parent = page }, { Corner(6) })
+        Stroke(Theme.Border, 1, 0.4).Parent = holder
+        local lbl = New("TextLabel", {
+            Size = UDim2.new(1, -20, 0, 20), Position = UDim2.fromOffset(12, 4), BackgroundTransparency = 1,
+            Text = text .. ": " .. tostring(default), Font = Theme.Font, TextSize = 12, TextColor3 = Theme.Text,
+            TextXAlignment = Enum.TextXAlignment.Left, Parent = holder,
+        })
+        local barBg = New("Frame", { Size = UDim2.new(1, -24, 0, 6), Position = UDim2.fromOffset(12, 30), BackgroundColor3 = Theme.Grey, Parent = holder }, { Corner(3) })
+        local fill = New("Frame", { Size = UDim2.new((default - min) / (max - min), 0, 1, 0), BackgroundColor3 = Theme.Accent, Parent = barBg }, { Corner(3) })
+        local dragging = false
+        local function update(inputPos)
+            local rel = math.clamp((inputPos - barBg.AbsolutePosition.X) / barBg.AbsoluteSize.X, 0, 1)
+            local val = math.floor(min + (max - min) * rel)
+            fill.Size = UDim2.new(rel, 0, 1, 0)
+            lbl.Text = text .. ": " .. tostring(val)
+            if callback then callback(val) end
+        end
+        barBg.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true; update(input.Position.X)
+            end
+        end)
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+        end)
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                update(input.Position.X)
+            end
+        end)
+        return holder
+    end
+
+    function Tab:AddLabel(text)
+        return New("TextLabel", {
+            Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = text, Font = Theme.Font,
+            TextSize = 12, TextColor3 = Theme.SubText, TextXAlignment = Enum.TextXAlignment.Left, Parent = page,
+        })
+    end
+
+    return Tab
+end
+
+-- ===================== RUN / SELF TEST =====================
+print("[Skiee0xc0] script compiled, launching...")
+
+local Win = Library.new({})
+
+task.spawn(function()
+    local t = 0
+    repeat task.wait(0.2); t += 0.2 until Win.Ready or t > 12
+    if not Win.Ready then warn("[Skiee0xc0] TIMEOUT - window never built"); return end
+
+    print("[Skiee0xc0] ready, building tabs")
+
+    local EspTab = Win:CreateTab("ESP")
+    local espEnabled = false
+    local espBoxes = {}
+
+    local function ClearESP()
+        for _, box in pairs(espBoxes) do
+            if box.Drawing then box.Drawing:Remove() end
+            if box.Name then box.Name:Remove() end
+        end
+        espBoxes = {}
+    end
+
+    local function UpdateESP()
+        if not espEnabled then return end
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character then
+                local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+                local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                if hrp and hum and hum.Health > 0 then
+                    local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+                    local box = espBoxes[plr]
+                    if not box then
+                        local okDraw, drawing = pcall(function()
+                            local d = Drawing.new("Square")
+                            d.Thickness = 1
+                            d.Color = Theme.Accent
+                            d.Filled = false
+                            d.Visible = false
+                            return d
+                        end)
+                        if not okDraw then return end
+                        local nameTag = Drawing.new("Text")
+                        nameTag.Size = 14
+                        nameTag.Color = Theme.Text
+                        nameTag.Outline = true
+                        nameTag.Center = true
+                        nameTag.Visible = false
+                        box = { Drawing = drawing, Name = nameTag }
+                        espBoxes[plr] = box
+                    end
+                    if onScreen then
+                        local dist = (hrp.Position - Camera.CFrame.Position).Magnitude
+                        local scale = 1000 / math.max(dist, 1)
+                        local boxW, boxH = 3 * scale, 5 * scale
+                        box.Drawing.Size = Vector2.new(boxW, boxH)
+                        box.Drawing.Position = Vector2.new(pos.X - boxW / 2, pos.Y - boxH / 2)
+                        box.Drawing.Visible = true
+                        box.Name.Position = Vector2.new(pos.X, pos.Y - boxH / 2 - 16)
+                        box.Name.Text = plr.Name
+                        box.Name.Visible = true
+                    else
+                        box.Drawing.Visible = false
+                        box.Name.Visible = false
+                    end
+                end
+            end
+        end
+        for plr, box in pairs(espBoxes) do
+            if not plr.Character or not plr.Parent then
+                box.Drawing:Remove(); box.Name:Remove()
+                espBoxes[plr] = nil
+            end
+        end
+    end
+
+    RunService.RenderStepped:Connect(UpdateESP)
+
+    EspTab:AddToggle("Enable Player ESP", false, function(state)
+        espEnabled = state
+        if not state then ClearESP() end
+    end)
+    EspTab:AddLabel("box + nametag, drawn w/ Drawing lib")
+
+    local TestTab = Win:CreateTab("Test")
+    TestTab:AddLabel("if you see this, the lib works")
+    print("[Skiee0xc0] fully loaded")
+end)
